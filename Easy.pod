@@ -74,6 +74,8 @@ Call this over and over until your program is done listening.  It collects a
 number of packets equal to C<packets_per_loop> (see below) and passes each
 packet, one at a time, to any callbacks you've specified (see below).
 
+This returns 1 if the count of packets was reached and returns () otherwise.
+
 =item C<new()>
 
 The details are in the L<OPTIONS|/OPTIONS> section below.
@@ -182,7 +184,7 @@ object.
 Example:
 
     tcp_callback = sub {
-        my ($npe, $ether, $tcp) = @_;
+        my ($npe, $ether, $ip, $tcp) = @_;
 
         print "TCP: $ip->{src_ip}:$tcp->{src_port} -> $ip->{dest_ip}:$tcp->{dest_port}\n";
         print "\t$ether->{src_mac} -> $ether->{dest_mac}\n" if $SHOW_MAC;

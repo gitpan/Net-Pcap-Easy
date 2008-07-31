@@ -14,7 +14,7 @@ use NetPacket::UDP;
 use NetPacket::IGMP;
 use NetPacket::ICMP qw(:types);
 
-our $VERSION     = "1.1";
+our $VERSION     = "1.2";
 our $MIN_SNAPLEN = 256;
 our $DEFAULT_PPL = 32;
 
@@ -200,7 +200,10 @@ sub arp {
 sub loop {
     my $this = shift;
 
-    Net::Pcap::loop($this->{pcap}, $this->{packets_per_loop}, $this->{_mcb}, "user data");
+    my $ret = Net::Pcap::loop($this->{pcap}, $this->{packets_per_loop}, $this->{_mcb}, "user data");
+
+    return unless $ret == 0;
+    return 1;
 }
 
 "true";

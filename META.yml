@@ -1,6 +1,6 @@
 ---
 name: Net-Pcap-Easy
-version: 1.1
+version: 1.2
 author:
   - 'Paul Miller <paul@cpan.org>'
 abstract: "Net::Pcap is awesome, but it's difficult to bootstrap"
@@ -22,7 +22,7 @@ build_requires:
 provides:
   Net::Pcap::Easy:
     file: Easy.pm
-    version: 1.1
+    version: 1.2
 generated_by: Module::Build version 0.2808
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.2.html
