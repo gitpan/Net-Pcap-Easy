@@ -1,22 +1,36 @@
 --- #YAML:1.0
-name:                Net-Pcap-Easy
-version:             1.32
-abstract:            ~
-license:             ~
-author:              ~
-generated_by:        ExtUtils::MakeMaker version 6.44
-distribution_type:   module
-requires:     
-    File::Slurp:                   0
-    Net::Netmask:                  0
-    Net::Pcap:                     0
-    NetPacket::ARP:                0
-    NetPacket::Ethernet:           0
-    NetPacket::ICMP:               0
-    NetPacket::IP:                 0
-    NetPacket::TCP:                0
-    NetPacket::UDP:                0
-    Socket:                        0
+name:               Net-Pcap-Easy
+version:            1.322
+abstract:           ~
+author:  []
+license:            lgpl2
+distribution_type:  module
+configure_requires:
+    ExtUtils::MakeMaker:  0
+build_requires:
+    ExtUtils::MakeMaker:  0
+requires:
+    File::Slurp:          0
+    Net::Netmask:         0
+    Net::Pcap:            0
+    NetPacket::ARP:       0
+    NetPacket::Ethernet:  0
+    NetPacket::ICMP:      0
+    NetPacket::IP:        0
+    NetPacket::TCP:       0
+    NetPacket::UDP:       0
+    perl:                 5.008
+    Socket:               0
+resources:
+    repository:  http://github.com/jettero/net--pcap--easy/tree
+no_index:
+    directory:
+        - t
+        - inc
+generated_by:       ExtUtils::MakeMaker version 6.50
 meta-spec:
-    url:     http://module-build.sourceforge.net/META-spec-v1.3.html
-    version: 1.3
+    url:      http://module-build.sourceforge.net/META-spec-v1.4.html
+    version:  1.4
+keywords:
+    - pcap
+    - sniffer
