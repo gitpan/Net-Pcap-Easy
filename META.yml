@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Net-Pcap-Easy
-version:            1.322
+version:            1.325
 abstract:           ~
 author:  []
 license:            lgpl2
