@@ -1,10 +1,14 @@
-Makefile.PL
-Easy.pm
-t/01_load.t
-MANIFEST
-Easy.pod
+.perlcriticrc
+.todo
 Changes
+Easy.pm
+Easy.pod
+MANIFEST
+Makefile.PL
 README
+eth0.data
+lo.data
+t/01_load.t
 t/05_tcp_tests.t
 t/07_icmp_tests.t
 t/10_two_filters_one_pcap.t
@@ -13,4 +17,9 @@ t/11_one_ipv4_filter.t
 t/15_two_filters_two_pcaps.t
 t/16_two_filters_two_pcaps_interleaved.t
 t/16_two_filters_two_pcaps_serialized.t
+t/31_replay_eth0.t
+t/31_replay_lo.t
+t/critic.t
+t/pod.t
+t/pod_coverage.t
 META.yml                                 Module meta-data (added by MakeMaker)

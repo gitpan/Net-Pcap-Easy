@@ -2,6 +2,8 @@
 package Net::Pcap::Easy;
 
 use strict;
+use warnings;
+
 use Carp;
 use Socket;
 use Net::Pcap;
@@ -14,7 +16,7 @@ use NetPacket::UDP;
 use NetPacket::IGMP;
 use NetPacket::ICMP qw(:types);
 
-our $VERSION     = 1.325;
+our $VERSION     = "1.4000";
 our $MIN_SNAPLEN = 256;
 our $DEFAULT_PPL = 32;
 
@@ -32,31 +34,8 @@ sub DESTROY {
 
     my $p = delete $this->{pcap};
     Net::Pcap::close($p) if $p;
-}
 
-sub dev {
-    my $this = shift;
-    $this->{dev}
-}
-
-sub network {
-    my $this = shift;
-
-    Socket::inet_ntoa(scalar reverse pack("l", $this->{network}));
-}
-
-sub netmask {
-    my $this = shift;
-
-    Socket::inet_ntoa(scalar reverse pack("l", $this->{netmask}));
-}
-
-sub cidr {
-    my $this = shift;
-    my $nm = $this->{nm};
-       $nm = $this->{nm} = Net::Netmask->new($this->network . "/" . $this->netmask) unless $this->{nm};
-
-    $nm;
+    return;
 }
 
 sub is_local {
@@ -72,41 +51,53 @@ sub new {
     my $this = bless { @_ }, $class;
 
     my $err;
-    my $dev = ($this->{dev});
-    unless( $dev ) {
-        $dev = $this->{dev} = Net::Pcap::lookupdev(\$err);
-        croak "ERROR while trying to find a device: $err" unless $dev;
+    my $pcap;
+    unless ($this->{pcap}) {
+        my $dev = $this->{dev};
+
+        if( $dev =~ s/^file:// ) {
+            $pcap = $this->{pcap} = 
+                Net::Pcap::open_offline($dev, \$err)
+                    or die "error opening offline pcap file: $err";
+
+        } else {
+            unless( $dev ) {
+                $dev = $this->{dev} = Net::Pcap::lookupdev(\$err);
+                croak "ERROR while trying to find a device: $err" unless $dev;
+            }
+
+            my ($network, $netmask);
+            if (Net::Pcap::lookupnet($dev, \$network, \$netmask, \$err)) {
+                croak "ERROR finding net and netmask for $dev: $err";
+
+            } else {
+                $this->{network} = $network;
+                $this->{netmask} = $netmask;
+            }
+
+            my $ppl = $this->{packets_per_loop};
+               $ppl = $this->{packets_per_loop} = $DEFAULT_PPL unless defined $ppl and $ppl > 0;
+
+            my $ttl = $this->{timeout_in_ms} || 0;
+               $ttl = 0 if $ttl < 0;
+
+            my $snaplen = $this->{bytes_to_capture} || 1024;
+               $snaplen = $MIN_SNAPLEN unless $snaplen >= 256;
+
+            $pcap = $this->{pcap} = Net::Pcap::open_live($dev, $snaplen, $this->{promiscuous}, $ttl, \$err);
+
+            croak "ERROR opening pacp session: $err" if $err or not $pcap;
+        }
+
+        for my $f (grep {m/_callback$/} keys %$this) {
+            croak "the $f option does not point to a CODE ref" unless ref($this->{$f}) eq "CODE";
+            warn  "the $f option is not a known callback and will never get called" unless $KNOWN_CALLBACKS{$f};
+        }
     }
-
-    my ($network, $netmask);
-    if (Net::Pcap::lookupnet($dev, \$network, \$netmask, \$err)) {
-        croak "ERROR finding net and netmask for $dev: $err";
-
-    } else {
-        $this->{network} = $network;
-        $this->{netmask} = $netmask;
-    }
-
-    for my $f (grep {m/_callback$/} keys %$this) {
-        croak "the $f option does not point to a CODE ref" unless ref($this->{$f}) eq "CODE";
-        warn  "the $f option is not a known callback and will never get called" unless $KNOWN_CALLBACKS{$f};
-    }
-
-    my $ppl = $this->{packets_per_loop};
-       $ppl = $this->{packets_per_loop} = $DEFAULT_PPL unless defined $ppl and $ppl > 0;
-
-    my $ttl = $this->{timeout_in_ms} || 0;
-       $ttl = 0 if $ttl < 0;
-
-    my $snaplen = $this->{bytes_to_capture} || 1024;
-       $snaplen = $MIN_SNAPLEN unless $snaplen >= 256;
-
-    my $pcap = $this->{pcap} = Net::Pcap::open_live($dev, $snaplen, $this->{promiscuous}, $ttl, \$err);
-    croak "ERROR opening pacp session: $err" if $err or not $pcap;
 
     if( my $f = $this->{filter} ) {
         my $filter;
-        Net::Pcap::compile( $pcap, \$filter, $f, 1, $netmask ) && croak 'ERROR compiling pcap filter';
+        Net::Pcap::compile( $pcap, \$filter, $f, 1, $this->{netmask} ) && croak 'ERROR compiling pcap filter';
         Net::Pcap::setfilter( $pcap, $filter ) && die 'ERROR Applying pcap filter';
     }
 
@@ -114,11 +105,13 @@ sub new {
         my ($user_data, $header, $packet) = @_;
         my $ether = NetPacket::Ethernet->decode($packet);
 
+        $this->{_pp} ++;
+
         my $type = $ether->{type};
         my $cb;
 
-        return $this->ipv4( $ether, NetPacket::IP  -> decode($ether->{data})) if $type == ETH_TYPE_IP;
-        return $this->arp(  $ether, NetPacket::ARP -> decode($ether->{data})) if $type == ETH_TYPE_ARP;
+        return $this->_ipv4( $ether, NetPacket::IP  -> decode($ether->{data})) if $type == ETH_TYPE_IP;
+        return $this->_arp(  $ether, NetPacket::ARP -> decode($ether->{data})) if $type == ETH_TYPE_ARP;
         
         return $cb->($this, $ether) if $type == ETH_TYPE_IPv6      and $cb = $this->{ipv6_callback};
         return $cb->($this, $ether) if $type == ETH_TYPE_SNMP      and $cb = $this->{snmp_callback};
@@ -131,7 +124,7 @@ sub new {
     return $this;
 }
 
-sub icmp {
+sub _icmp {
     my ($this, $ether, $ip, $icmp) = @_;
 
     my $cb;
@@ -158,9 +151,11 @@ sub icmp {
     return $cb->($this, $ether, $ip, $icmp) if $cb = $this->{icmp_callback};
     return $cb->($this, $ether, $ip, $icmp) if $cb = $this->{ipv4_callback};
     return $cb->($this, $ether, $ip, $icmp) if $cb = $this->{default_callback};
+
+    return;
 }
 
-sub ipv4 {
+sub _ipv4 {
     my ($this, $ether, $ip) = @_;
 
     my $cb;
@@ -170,7 +165,7 @@ sub ipv4 {
 
     return $cb->($this, $ether, $ip, NetPacket::TCP  -> decode($ip->{data})) if $proto == IP_PROTO_TCP  and $cb = $this->{tcp_callback};
     return $cb->($this, $ether, $ip, NetPacket::UDP  -> decode($ip->{data})) if $proto == IP_PROTO_UDP  and $cb = $this->{udp_callback};
-    return $this->icmp($ether,$ip,   NetPacket::ICMP -> decode($ip->{data})) if $proto == IP_PROTO_ICMP;
+    return $this->_icmp($ether,$ip,  NetPacket::ICMP -> decode($ip->{data})) if $proto == IP_PROTO_ICMP;
     return $cb->($this, $ether, $ip, NetPacket::IGMP -> decode($ip->{data})) if $proto == IP_PROTO_IGMP and $cb = $this->{igmp_callback};
 
     my $spo;
@@ -180,13 +175,15 @@ sub ipv4 {
 
     return $cb->($this, $ether, $ip, $spo) if $cb = $this->{ipv4_callback};
     return $cb->($this, $ether, $ip, $spo) if $cb = $this->{default_callback};
+
+    return;
 }
 
-sub arp {
+sub _arp {
     my ($this, $ether, $arp) = @_;
 
     my $cb;
-    my $op = $this->{opcode};
+    my $op = $arp->{opcode};
 
     return $cb->($this, $ether, $arp) if $op ==  ARP_OPCODE_REQUEST and $cb = $this->{arpreq_callback};
     return $cb->($this, $ether, $arp) if $op ==  ARP_OPCODE_REPLY   and $cb = $this->{arpreply_callback};
@@ -195,6 +192,8 @@ sub arp {
 
     return $cb->($this, $ether, $arp) if $cb = $this->{arp_callback};
     return $cb->($this, $ether, $arp) if $cb = $this->{default_callback};
+
+    return;
 }
 
 sub loop {
@@ -203,7 +202,33 @@ sub loop {
     my $ret = Net::Pcap::loop($this->{pcap}, $this->{packets_per_loop}, $this->{_mcb}, "user data");
 
     return unless $ret == 0;
-    return 1;
+    return (delete $this->{_pp}) || 0; # return the number of processed packets.
 }
 
-"true";
+sub pcap        { return $_[0]->{pcap} }
+sub raw_network { return $_[0]->{network} }
+sub raw_netmask { return $_[0]->{netmask} }
+sub dev         { return $_[0]->{dev} }
+
+sub network {
+    my $this = shift;
+
+    return Socket::inet_ntoa(scalar reverse pack("l", $this->{network}));
+}
+
+sub netmask {
+    my $this = shift;
+
+    return Socket::inet_ntoa(scalar reverse pack("l", $this->{netmask}));
+}
+
+sub cidr {
+    my $this = shift;
+    my $nm = $this->{nm};
+       $nm = $this->{nm} = Net::Netmask->new($this->network . "/" . $this->netmask) unless $this->{nm};
+
+    return $nm;
+}
+
+
+1;

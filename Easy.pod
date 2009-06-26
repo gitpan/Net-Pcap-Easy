@@ -46,11 +46,19 @@ wrapper that makes everything perl-esque.
 There are a couple convenience functions available, two control functions, and
 various blessed-hash keys at your disposal.
 
-=over The methods
+=head1 METHODS
+
+=over 4
 
 =item C<dev()>
 
 Returns the name of the device you're sniffing.
+
+=item C<pcap()>
+
+This returns the actual L<Net::Pcap> reference.  If you need to call a function
+from L<Net::Pcap> that requires a pcap object argument, this would be the object
+to pass.
 
 =item C<network()>
 
@@ -64,6 +72,14 @@ Returns the netmask of the device (as a text ip number, e.g., 255.255.255.0).
 
 Returns the network of the device as a L<Net::Netmask> object, which string-interpolates to CIDR notation.
 
+=item C<raw_network()>
+
+This is the long (see L<pack|perlfunc/pack>'s "l") value of the network.
+
+=item C<raw_netmask()>
+
+This is the long (see L<pack|perlfunc/pack>'s "l") value of the netmask.
+
 =item C<is_local($ip_or_network)>
 
 Returns true when the first argument is an IP (as text) or network (as text or
@@ -73,31 +89,18 @@ for details on this.
 =item C<loop()>
 
 Call this over and over until your program is done listening.  It collects a
-number of packets equal to C<packets_per_loop> (see below) and passes each
-packet, one at a time, to any callbacks you've specified (see below).
+number of packets equal to L</packets_per_loop> (see below) and passes each
+packet one at a time to any callbacks you've specified (see below).
 
-This returns 1 if the count of packets was reached and returns () otherwise.
+The function returns the number of packets processed (normally the same as
+L</packets_per_loop>), and therefore less than L</packets_per_loop> or 0 at the
+end of a packet file.
+
+It returns the empty list or the undef value in the case of an error.
 
 =item C<new()>
 
 The details are in the L<OPTIONS|/OPTIONS> section below.
-
-=back
-
-=over The hash values
-
-=item C<{pcap}>
-
-This is the actual pcap reference.  You can pass it to L<Net::Pcap> functions if
-you wish.
-
-=item C<{network}>
-
-This is the long (see L<pack>'s "l") value of the network.
-
-=item C<{netmask}>
-
-This is the long (see L<pack>'s "l") value of the netmask.
 
 =back
 
@@ -109,7 +112,7 @@ the device.
 
 The options can only be specified as arguments to the C<new()> method.
 
-=over the options
+=over 4
 
 =item C<dev>
 
@@ -117,6 +120,32 @@ The device you wish to listen on, eth0, "Local Area Connection," etc.  It's a
 good idea to specify this device, but if you don't, L<Net::Pcap::Easy> will
 attempt to locate it with L<Net::Pcap>'s C<lookupdev()> method.  Odds are good
 that it won't find the device you want, your mileage may vary.
+
+    my $npe = Net::Pcap::Easy->new(
+        dev              => "eth0",
+        filter           => "icmp",
+        packets_per_loop => 10,
+
+        icmp_callback => sub { warn "ping or something!\n" },
+    );
+
+    1 while $npe->loop; # loop() returns 10, 10, 10, until you hit ^C
+    exit 0;
+
+If passed a special filename, C<"file:/path/name">, L<Net::Pcap::Easy> will try
+to open that file and read it as the device.  This will break functions like
+L</network>, L</netmask> and the raw versions -- their results are undefined.
+
+    bash$ tcpdump -c 6 -i lo -w lo.data
+
+    my $npe = Net::Pcap::Easy->new(
+        dev              => "file:./lo.data",
+        packets_per_loop => 3,
+        icmp_callback => sub { warn "ping or something!\n" },
+    );
+
+    1 while $npe->loop; # loop() returns 3 twice, then a 0
+    exit 0;
 
 =item C<packets_per_loop> 
 
@@ -148,6 +177,12 @@ requested PPL.
 This is a boolean value (in the perl sense) indicating whether you wish to
 capture packets not intended for the listening interface.  The default is false.
 
+=item C<pcap>
+
+You can optionally build the L<Net::Pcap> object yourself.  Presumably you have
+something custom in mind if you choose to do this.  Choosing to do this will
+disable various features (like populating the network and netmask fields);
+
 =item C<*_callback>
 
 The captured packets are passed to code refs.  There are a variety of callback
@@ -165,7 +200,7 @@ If a packet would match multiple callbacks it will try to call the most specific
 match first (whatever that might mean).  The callbacks are listed in order of
 preference.
 
-=over The IPv4 Callbacks:
+=over 4
 
 =item C<tcp_callback>
 
@@ -264,7 +299,9 @@ C<rarpreply_callback>, C<rarpreq_callback>
 
 =back
 
-=over Other Callbacks:
+=head1 OTHER_CALLBACKS
+
+=over 4
 
 =item C<ipv6_callback>
 
@@ -304,7 +341,9 @@ this callback gets only the C<NetPacket::Ethernet> object.
 
 =back
 
-=over The Default Callback:
+=head1 DEFAULT CALLBACK
+
+=over 4
 
 =item C<default_callback>
 
@@ -358,10 +397,10 @@ Example:
 
 =head1 AUTHOR
 
-Paul Miller <jettero@cpan.org>
+Paul Miller C<< <jettero@cpan.org> >>
 
 I am using this software in my own projects...  If you find bugs, please
-please please let me know. :) Actually, let me know if you find it handy at
+please please let me know.  Actually, let me know if you find it handy at
 all.  Half the fun of releasing this stuff is knowing that people use it.
 
 If you see anything wrong with the callbacks, the docs, or anything:  Definitely

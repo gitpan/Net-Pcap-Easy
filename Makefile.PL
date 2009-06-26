@@ -1,4 +1,6 @@
-# vi:set syntax=perl:
+
+use strict;
+use warnings;
 
 use ExtUtils::MakeMaker;
 
@@ -26,15 +28,15 @@ WriteMakefile(
     },
 
     ($ExtUtils::MakeMaker::VERSION ge '6.48'? 
-        (MIN_PERL_VERSION => 5.008,
+        (MIN_PERL_VERSION => 5.006001,
             META_MERGE => {
                 keywords => ['pcap', 'sniffer'],
                 resources=> {
-                    repository => 'http://github.com/jettero/net--pcap--easy/tree',
+                    repository => 'http://github.com/jettero/net--pcap--easy/',
                 },
             },
 
-        LICENSE	=> 'lgpl2',
+        LICENSE	=> 'LGPL',
     ) : ()),
 
     clean => { FILES => 'device' },

@@ -1,3 +1,22 @@
+1.4000: Thu Jun 25 16:00:00 EDT 2009
+   - made {pcap} and {netmask} into accessor functions (get_pcap,
+     etc) and altered pods
+   - got the pods to pass t/pod.t
+   - t/pod_coverage.t passes
+   - got t/critic.t to pass
+   - renamed and moved a few things.
+   - to avoid the fact that loop() returns true forever at the
+     end of a packetfile, I've made loop() instead return the
+     number of processed packets (in cases where there was no
+     error) -- and undef or () when there was an error.
+   - added the new dev=>"file:lo.data" format to the pod
+   - added the dev=>"file:lo.data" test (t/31_)
+   - added the dev=>"file:eth0.data" test (t/31_)
+
+1.325: Thu Jun 25 08:41:37 EDT 2009
+   - adding patch from andk
+   - made sure this works under 5.6.1
+
 1.325: Fri Mar 27 18:28:59 EDT 2009
    - gah, bug in the Makefile.PL, noticed it when I installed on
      my new server.
