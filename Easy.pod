@@ -11,16 +11,28 @@ Net::Pcap::Easy - Net::Pcap is awesome, but it's difficult to bootstrap
     # all arguments to new are optoinal
     my $npe = Net::Pcap::Easy->new(
         dev              => "lo",
-        filter           => "host 127.0.0.1 and icmp",
+        filter           => "host 127.0.0.1 and (tcp or icmp)",
         packets_per_loop => 10,
         bytes_to_capture => 1024,
         timeout_in_ms    => 0, # 0ms means forever
         promiscuous      => 0, # true or false
 
-        icmp_callback => sub {
-            my ($npe, $ether, $ip, $icmp) = @_;
+        tcp_callback => sub {
+            my ($npe, $ether, $ip, $tcp, $header ) = @_;
+            my $xmit = localtime( $header->{tv_sec} );
 
-            print "ICMP: $ether->{src_mac}:$ip->{src_ip} -> $ether->{dest_mac}:$ip->{dest_ip}\n";
+            print "$xmit TCP: $ip->{src_ip}:$tcp->{src_port}"
+             . " -> $ip->{dest_ip}:$tcp->{dest_port}\n";
+
+            print "\t$ether->{src_mac} -> $ether->{dest_mac}\n" if $SHOW_MAC;
+        },
+
+        icmp_callback => sub {
+            my ($npe, $ether, $ip, $icmp, $header ) = @_;
+            my $xmit = localtime( $header->{tv_sec} );
+
+            print "$xmit ICMP: $ether->{src_mac}:$ip->{src_ip}"
+             . " -> $ether->{dest_mac}:$ip->{dest_ip}\n";
         },
     );
 
@@ -206,13 +218,19 @@ preference.
 
 The callback will receive as arguments:
 
-    my ($npe, $ether, $ip, $tcp) = @_;
+    my ($npe, $ether, $ip, $tcp, $header ) = @_;
 
 C<$npe> is the L<Net::Pcap::Easy> object, C<$ether> is a L<NetPacket::Ethernet>
-object, C<$ip> is a L<NetPacket::IP> object and C<$tcp> is a L<NetPacket::TCP>
-object.
+object, C<$ip> is a L<NetPacket::IP> object, C<$tcp> is a L<NetPacket::TCP>
+object and C<$header> is a L<Net::Pcap> header object.
 
-Each object C<NetPacket> object contains a C<{data}> field that holds the data
+Each C<Net::Pcap> object contains the length of the entire packet C<{len}>, the
+length captured by the libpcap C<{caplen}>, and the timestamp from the packet header
+C<{tv_sec}>/C<{tv_usec}> — C<{tv_sec}> is seconds since the epoch (see:
+L<perlfunc/localtime>) and C<{tv_usec}> is microseconds since that second [I
+think].
+
+Each C<NetPacket> object contains a C<{data}> field that holds the data
 below the packet headers.  Unsurprisingly, the C<{dest_mac}> and C<{src_mac}>
 are available in the C<$ether> object, the C<{src_ip}> and C<{dest_ip}> are in
 the C<$ip> object and the C<{dest_port}> and C<{src_port}> are in the C<$tcp>
@@ -220,8 +238,8 @@ object.
 
 Example:
 
-    tcp_callback = sub {
-        my ($npe, $ether, $ip, $tcp) = @_;
+    tcp_callback => sub {
+        my ($npe, $ether, $ip, $tcp, $header ) = @_;
 
         print "TCP: $ip->{src_ip}:$tcp->{src_port} -> $ip->{dest_ip}:$tcp->{dest_port}\n";
         print "\t$ether->{src_mac} -> $ether->{dest_mac}\n" if $SHOW_MAC;
@@ -231,7 +249,7 @@ Example:
 
 The callback will receive as arguments:
 
-    my ($npe, $ether, $ip, $udp) = @_;
+    my ($npe, $ether, $ip, $udp, $header ) = @_;
 
 This works exactly like the C<tcp_callback> except that instead of C<$tcp>, the
 callback is passed a C<$udp> argument that is a L<NetPacket::UDP> object.  The
@@ -241,7 +259,7 @@ C<$udp> object has a C<{src_port}> and C<{dest_port}>, just like you'd expect.
 
 The callback will receive as arguments:
 
-    my ($npe, $ether, $ip, $icmp) = @_;
+    my ($npe, $ether, $ip, $icmp, $header ) = @_;
 
 This callback is quite similar to the C<tcp_callback>/C<udp_callback>s, but the
 L<NetPacket::ICMP> object doesn't have ports.  See that page for details on
@@ -262,7 +280,7 @@ C<icmpireq_callback>, C<icmpireqreply_callback>
 
 The callback will receive as arguments:
 
-    my ($npe, $ether, $ip, $igmp) = @_;
+    my ($npe, $ether, $ip, $igmp, $header ) = @_;
 
 Please see the L<NetPacket::IGMP> page for details on the C<$igmp> argument.
 
@@ -270,7 +288,7 @@ Please see the L<NetPacket::IGMP> page for details on the C<$igmp> argument.
 
 The callback will receive as arguments:
 
-    my ($npe, $ether, $ip, $spo) = @_;
+    my ($npe, $ether, $ip, $spo, $header ) = @_;
 
 C<$spo> is any of L<NetPacket::TCP>, L<NetPacket::UDP>, L<NetPacket::ICMP>,
 L<NetPacket::IGMP>, or C<undef> (see the default callback, below, for an example
@@ -283,7 +301,7 @@ is that you can say for sure the third argument is a L<NetPacket::IP> object.
 
 The callback will receive as arguments:
 
-    my ($npe, $ether, $arp) = @_;
+    my ($npe, $ether, $arp, $header ) = @_;
 
 This callback is also quite similar to the
 C<tcp_callback>/C<udp_callback>/C<icmp_callback>s.  See the L<NetPacket::ARP>
@@ -307,7 +325,7 @@ C<rarpreply_callback>, C<rarpreq_callback>
 
 The callback will receive as arguments:
 
-    my ($npe, $ether) = @_;
+    my ($npe, $ether, $header ) = @_;
 
 There doesn't seem to be a C<NetPacket> decoder for this type of packet, so,
 this callback gets only the C<NetPacket::Ethernet> object.
@@ -316,7 +334,7 @@ this callback gets only the C<NetPacket::Ethernet> object.
 
 The callback will receive as arguments:
 
-    my ($npe, $ether) = @_;
+    my ($npe, $ether, $header ) = @_;
 
 There doesn't seem to be a C<NetPacket> decoder for this type of packet, so,
 this callback gets only the C<NetPacket::Ethernet> object.
@@ -325,7 +343,7 @@ this callback gets only the C<NetPacket::Ethernet> object.
 
 The callback will receive as arguments:
 
-    my ($npe, $ether) = @_;
+    my ($npe, $ether, $header ) = @_;
 
 There doesn't seem to be a C<NetPacket> decoder for this type of packet, so,
 this callback gets only the C<NetPacket::Ethernet> object.
@@ -334,7 +352,7 @@ this callback gets only the C<NetPacket::Ethernet> object.
 
 The callback will receive as arguments:
 
-    my ($npe, $ether) = @_;
+    my ($npe, $ether, $header ) = @_;
 
 There doesn't seem to be a C<NetPacket> decoder for this type of packet, so,
 this callback gets only the C<NetPacket::Ethernet> object.
@@ -351,18 +369,18 @@ Anything not captured above will go to this callback if specified.  It receives
 a variety of arguments, differing based on the packet types.  There are seven
 types of calls it might receive:
 
-    my ($npe, $ether, $ip, $tcp)  = @_; # TCP packets
-    my ($npe, $ether, $ip, $udp)  = @_; # UDP packets
-    my ($npe, $ether, $ip, $icmp) = @_; # ICMP packets
-    my ($npe, $ether, $ip, $igmp) = @_; # IGMP packets
-    my ($npe, $ether, $ip)        = @_; # other IP packets
-    my ($npe, $ether, $arp)       = @_; # ARP packets
-    my ($npe, $ether)             = @_; # everything else
+    my ($npe, $ether, $ip, $tcp, $header )  = @_; # TCP packets
+    my ($npe, $ether, $ip, $udp, $header )  = @_; # UDP packets
+    my ($npe, $ether, $ip, $icmp, $header ) = @_; # ICMP packets
+    my ($npe, $ether, $ip, $igmp, $header ) = @_; # IGMP packets
+    my ($npe, $ether, $ip, $header )        = @_; # other IP packets
+    my ($npe, $ether, $arp, $header )       = @_; # ARP packets
+    my ($npe, $ether, $header )             = @_; # everything else
 
 Example:
 
-    default_callback = sub {
-        my ($npe, $ether, $po, $spo) = @_;
+    default_callback => sub {
+        my ($npe, $ether, $po, $spo, $header ) = @_;
 
         if( $po ) {
             if( $po->isa("NetPacket::IP") ) {
@@ -498,6 +516,10 @@ let me know!  rt.cpan, irc, email, whatever.  Just let me know.
 
 =head2 Patches welcome!
 
+Please note that your patches should avoid changing the API for downstream
+users.  Sometimes this means making bad design decisions (e.g., sticking fake
+Ethernet headers on non-Ethernet frames).
+
 =over
 
 =item ANDK
@@ -507,6 +529,10 @@ Fixed various things in the init functions.  See RT #47324.
 =item Daniel Roethlisberger
 
 Helped L<Net::Pcap::Easy> load non Ethernet frames.
+
+=item Jerry Litteer
+
+Needed Ethernet C<$header> information for his project, so he sent patches.
 
 =back
 
