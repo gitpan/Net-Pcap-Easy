@@ -1,7 +1,7 @@
 
 use strict;
 use Test;
-use Net::Pcap::Easy;
+use Net::Pcap;
 use File::Slurp qw(slurp);
 
 plan tests => my $max = 50;
@@ -21,18 +21,22 @@ unless( $dev ) {
 if( eval q{ use Unix::Process; 1; } ) {
 
     for(1 .. 50) {
-        my $npe = Net::Pcap::Easy->new( bytes_to_capture => 4096, dev=>$dev, ipv4_callback=>sub{} );
-        $npe->close;
+        my $err;
+        my $pcap = Net::Pcap::open_live($dev, 1024, 0, 0, \$err);
+
+        Net::Pcap::close($pcap) if $pcap;
     }
 
     my $first = Unix::Process->vsz($$);
     for(1 .. 50) {
-        my $npe = Net::Pcap::Easy->new( bytes_to_capture => 4096, dev=>$dev, ipv4_callback=>sub{} );
-        $npe->close;
+        my $err;
+        my $pcap = Net::Pcap::open_live($dev, 1024, 0, 0, \$err);
+
+        Net::Pcap::close($pcap) if $pcap;
 
         my $last = Unix::Process->vsz($$);
 
-        ok( "$_-$last", "$_-$first" );
+        ok( $last, $first );
         $first = $last;
     }
 
